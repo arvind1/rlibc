@@ -32,58 +32,51 @@
 
 #[cfg_attr(all(feature = "weak", not(windows), not(target_os = "macos")), linkage = "weak")]
 #[no_mangle]
-pub unsafe extern fn memcpy(dest: *mut u8, src: *const u8,
-                            n: usize) -> *mut u8 {
-    let mut i = 0;
-    while i < n {
-        *dest.offset(i as isize) = *src.offset(i as isize);
-        i += 1;
+pub unsafe extern "C" fn memcpy(dest: *mut u8, src: *const u8, n: usize) -> *mut u8 {
+    for i in 0..n as isize {
+        *dest.offset(i) = *src.offset(i);
     }
-    return dest;
+    dest
 }
 
 #[cfg_attr(all(feature = "weak", not(windows), not(target_os = "macos")), linkage = "weak")]
 #[no_mangle]
-pub unsafe extern fn memmove(dest: *mut u8, src: *const u8,
-                             n: usize) -> *mut u8 {
-    if src < dest as *const u8 { // copy from end
-        let mut i = n;
-        while i != 0 {
+pub unsafe extern "C" fn memmove(dest: *mut u8, src: *const u8, n: usize) -> *mut u8 {
+    if src < dest as *const u8 {
+        // copy from end
+        let mut i = n as isize;
+        while i > 0 {
             i -= 1;
-            *dest.offset(i as isize) = *src.offset(i as isize);
+            *dest.offset(i) = *src.offset(i);
         }
-    } else { // copy from beginning
-        let mut i = 0;
-        while i < n {
-            *dest.offset(i as isize) = *src.offset(i as isize);
-            i += 1;
+    } else {
+        // copy from beginning
+        for i in 0..n as isize {
+            *dest.offset(i) = *src.offset(i);
         }
     }
-    return dest;
+    dest
 }
 
 #[cfg_attr(all(feature = "weak", not(windows), not(target_os = "macos")), linkage = "weak")]
 #[no_mangle]
-pub unsafe extern fn memset(s: *mut u8, c: i32, n: usize) -> *mut u8 {
-    let mut i = 0;
-    while i < n {
-        *s.offset(i as isize) = c as u8;
-        i += 1;
+pub unsafe extern "C" fn memset(s: *mut u8, c: i32, n: usize) -> *mut u8 {
+    for i in 0..n as isize {
+        *s.offset(i) = c as u8;
     }
-    return s;
+    s
 }
 
 #[cfg_attr(all(feature = "weak", not(windows), not(target_os = "macos")), linkage = "weak")]
 #[no_mangle]
-pub unsafe extern fn memcmp(s1: *const u8, s2: *const u8, n: usize) -> i32 {
-    let mut i = 0;
-    while i < n {
-        let a = *s1.offset(i as isize);
-        let b = *s2.offset(i as isize);
-        if a != b {
-            return a as i32 - b as i32
+pub unsafe extern "C" fn memcmp(s1: *const u8, s2: *const u8, n: usize) -> i32 {
+    for i in 0..n as isize {
+        let a = *s1.offset(i) as i32;
+        let b = *s2.offset(i) as i32;
+        let x = a - b;
+        if x != 0 {
+            return x;
         }
-        i += 1;
     }
     return 0;
 }
@@ -136,16 +129,18 @@ mod test {
 
     #[test]
     fn memset_array() {
-        let mut buffer = [b'X';  100];
+        let mut buffer = [b'X'; 100];
         unsafe {
             memset(buffer.as_mut_ptr(), b'#' as i32, buffer.len());
         }
-        for byte in buffer.iter() { assert_eq!(*byte, b'#'); }
+        for byte in buffer.iter() {
+            assert_eq!(*byte, b'#');
+        }
     }
 
     #[test]
     fn memcpy_and_memcmp_arrays() {
-        let (src, mut dst) = ([b'X';  100], [b'Y';  100]);
+        let (src, mut dst) = ([b'X'; 100], [b'Y'; 100]);
         unsafe {
             assert!(memcmp(src.as_ptr(), dst.as_ptr(), 100) != 0);
             let _ = memcpy(dst.as_mut_ptr(), src.as_ptr(), 100);
@@ -156,7 +151,7 @@ mod test {
     #[test]
     fn memmove_overlapping() {
         {
-            let mut buffer = [ b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9' ];
+            let mut buffer = [b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9'];
             unsafe {
                 memmove(&mut buffer[4], &buffer[0], 6);
                 let mut i = 0;
@@ -167,7 +162,7 @@ mod test {
             }
         }
         {
-            let mut buffer = [ b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9' ];
+            let mut buffer = [b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9'];
             unsafe {
                 memmove(&mut buffer[0], &buffer[4], 6);
                 let mut i = 0;
